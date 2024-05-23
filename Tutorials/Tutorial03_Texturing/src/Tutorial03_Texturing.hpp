@@ -43,6 +43,8 @@ public:
 
     virtual const Char* GetSampleName() const override final { return "Tutorial03: Texturing"; }
 
+    virtual DesiredApplicationSettings GetDesiredApplicationSettings(bool ) override final;
+
 private:
     void CreatePipelineState();
     void CreateVertexBuffer();
@@ -54,8 +56,9 @@ private:
     RefCntAutoPtr<IBuffer>                m_CubeIndexBuffer;
     RefCntAutoPtr<IBuffer>                m_VSConstants;
     RefCntAutoPtr<ITextureView>           m_TextureSRV;
+    RefCntAutoPtr<ITextureView>           m_TextureSRV2;
     RefCntAutoPtr<IShaderResourceBinding> m_SRB;
-    float4x4                              m_WorldViewProjMatrix;
+    float4x4                              m_WorldViewProjMatrixs[2];
 };
 
 } // namespace Diligent

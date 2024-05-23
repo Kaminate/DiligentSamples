@@ -39,6 +39,13 @@ SampleBase* CreateSample()
     return new Tutorial03_Texturing();
 }
 
+DesiredApplicationSettings Tutorial03_Texturing::GetDesiredApplicationSettings(bool isinit)
+{
+    DesiredApplicationSettings result{};
+    result.SetShowUI( false );
+return result;
+}
+
 void Tutorial03_Texturing::CreatePipelineState()
 {
     // Pipeline state object encompasses configuration of all GPU stages
@@ -128,13 +135,17 @@ void Tutorial03_Texturing::CreatePipelineState()
 
     // Define variable type that will be used by default
     PSOCreateInfo.PSODesc.ResourceLayout.DefaultVariableType = SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
+    //PSOCreateInfo.PSODesc.ResourceLayout.DefaultVariableType = SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC;
+
 
     // clang-format off
     // Shader variables should typically be mutable, which means they are expected
     // to change on a per-instance basis
     ShaderResourceVariableDesc Vars[] = 
     {
-        {SHADER_TYPE_PIXEL, "g_Texture", SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE}
+
+        //{SHADER_TYPE_PIXEL, "g_Texture", SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE}
+        {SHADER_TYPE_PIXEL, "g_Texture", SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC}
     };
     // clang-format on
     PSOCreateInfo.PSODesc.ResourceLayout.Variables    = Vars;
@@ -269,12 +280,12 @@ void Tutorial03_Texturing::LoadTexture()
     TextureLoadInfo loadInfo;
     loadInfo.IsSRGB = true;
     RefCntAutoPtr<ITexture> Tex;
+    RefCntAutoPtr<ITexture> Tex2;
     CreateTextureFromFile("DGLogo.png", loadInfo, m_pDevice, &Tex);
+    CreateTextureFromFile("DGLogo2.png", loadInfo, m_pDevice, &Tex2);
     // Get shader resource view from the texture
     m_TextureSRV = Tex->GetDefaultView(TEXTURE_VIEW_SHADER_RESOURCE);
-
-    // Set texture SRV in the SRB
-    m_SRB->GetVariableByName(SHADER_TYPE_PIXEL, "g_Texture")->Set(m_TextureSRV);
+    m_TextureSRV2 = Tex2->GetDefaultView(TEXTURE_VIEW_SHADER_RESOURCE);
 }
 
 
@@ -303,10 +314,13 @@ void Tutorial03_Texturing::Render()
     m_pImmediateContext->ClearRenderTarget(pRTV, ClearColor.Data(), RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
     m_pImmediateContext->ClearDepthStencil(pDSV, CLEAR_DEPTH_FLAG, 1.f, 0, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
+    for (int i = 0; i < 2; ++i)
+    {
+
     {
         // Map the buffer and write current world-view-projection matrix
         MapHelper<float4x4> CBConstants(m_pImmediateContext, m_VSConstants, MAP_WRITE, MAP_FLAG_DISCARD);
-        *CBConstants = m_WorldViewProjMatrix.Transpose();
+        *CBConstants = m_WorldViewProjMatrixs[i].Transpose();
     }
 
     // Bind vertex and index buffers
@@ -317,6 +331,21 @@ void Tutorial03_Texturing::Render()
 
     // Set the pipeline state
     m_pImmediateContext->SetPipelineState(m_pPSO);
+
+
+
+
+
+    IDeviceObject* TextureSRVs[ 2 ]
+    {
+        m_TextureSRV,
+        m_TextureSRV2
+    };
+
+    // Set texture SRV in the SRB
+    IShaderResourceVariable* var = m_SRB->GetVariableByName(SHADER_TYPE_PIXEL, "g_Texture");
+    var->Set(TextureSRVs[ i ]);
+
     // Commit shader resources. RESOURCE_STATE_TRANSITION_MODE_TRANSITION mode
     // makes sure that resources are transitioned to required states.
     m_pImmediateContext->CommitShaderResources(m_SRB, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
@@ -327,6 +356,7 @@ void Tutorial03_Texturing::Render()
     // Verify the state of vertex and index buffers
     DrawAttrs.Flags = DRAW_FLAG_VERIFY_ALL;
     m_pImmediateContext->DrawIndexed(DrawAttrs);
+    }
 }
 
 void Tutorial03_Texturing::Update(double CurrTime, double ElapsedTime)
@@ -334,7 +364,12 @@ void Tutorial03_Texturing::Update(double CurrTime, double ElapsedTime)
     SampleBase::Update(CurrTime, ElapsedTime);
 
     // Apply rotation
-    float4x4 CubeModelTransform = float4x4::RotationY(static_cast<float>(CurrTime) * 1.0f) * float4x4::RotationX(-PI_F * 0.1f);
+    //float4x4 CubeModelTransform = float4x4::RotationY(static_cast<float>(CurrTime) * 1.0f) * float4x4::RotationX(-PI_F * 0.1f);
+    float d = 1;
+    float4x4 CubeModelTransform1 = float4x4::Translation(-d,0,0) * float4x4::RotationX(-PI_F * 0.1f);
+    float4x4 CubeModelTransform2 = float4x4::Translation(d,0,0) * float4x4::RotationX(-PI_F * 0.1f);
+    CubeModelTransform1 = float4x4::RotationY(static_cast<float>(CurrTime) * 1.0f) * CubeModelTransform1;
+    CubeModelTransform2 = float4x4::RotationY(static_cast<float>(CurrTime) * 1.0f) * CubeModelTransform2;
 
     // Camera is at (0, 0, -5) looking along the Z axis
     float4x4 View = float4x4::Translation(0.f, 0.0f, 5.0f);
@@ -346,7 +381,8 @@ void Tutorial03_Texturing::Update(double CurrTime, double ElapsedTime)
     auto Proj = GetAdjustedProjectionMatrix(PI_F / 4.0f, 0.1f, 100.f);
 
     // Compute world-view-projection matrix
-    m_WorldViewProjMatrix = CubeModelTransform * View * SrfPreTransform * Proj;
+    m_WorldViewProjMatrixs[0] = CubeModelTransform1 * View * SrfPreTransform * Proj;
+    m_WorldViewProjMatrixs[1] = CubeModelTransform2 * View * SrfPreTransform * Proj;
 }
 
 } // namespace Diligent
